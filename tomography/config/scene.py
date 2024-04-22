@@ -5,7 +5,7 @@ class ScenePCD():
 class SceneMap():
     resolution = 0.10
     ground_h = 0.0
-    slice_dh = 0.5
+    slice_dh = 0.5   
 
 
 class SceneTrav():

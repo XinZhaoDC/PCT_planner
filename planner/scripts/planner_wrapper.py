@@ -19,6 +19,7 @@ class TomogramPlanner(object):
         self.max_heading_rate = self.cfg.planner.max_heading_rate
 
         self.tomo_dir = rsg_root + self.cfg.wrapper.tomo_dir
+        self.waypoint_dir = rsg_root + self.cfg.wrapper.waypoint_dir
 
         self.resolution = None
         self.center = None
@@ -122,3 +123,12 @@ class TomogramPlanner(object):
         idx = np.round(pos / self.resolution).astype(np.int32) + self.offset
         idx = np.array([idx[1], idx[0]], dtype=np.float32)
         return idx
+    
+    def writeWaypoint(self, waypoint_file, traj):
+        with open(self.waypoint_dir + waypoint_file + '.txt', 'a+') as f:
+            for waypoint in traj:
+                x = waypoint[0]
+                y = waypoint[1]
+                z = waypoint[2]
+                lines=[str(x) + ',', str(y) + ',', str(z + 1.0)+'\n']            # 不知道是什么原因，生成的轨迹在z方向上加1.0无人机才能离地面1.6-1.7
+                f.writelines(lines)

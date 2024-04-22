@@ -12,7 +12,7 @@ sys.path.append('../')
 from config import Config
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--scene', type=str, default='Spiral', help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\']')
+parser.add_argument('--scene', type=str, default='Spiral', help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\', \'Forest\']')
 args = parser.parse_args()
 
 cfg = Config()
@@ -25,11 +25,25 @@ elif args.scene == 'Building':
     tomo_file = 'building2_9'
     start_pos = np.array([5.0, 5.0], dtype=np.float32)
     end_pos = np.array([-6.0, -1.0], dtype=np.float32)
+elif args.scene == 'Forest':
+    tomo_file = 'path_planning'
+    start_pos = np.array([13.40,19.27], dtype=np.float32)
+    end_pos = np.array([43.05,60.35], dtype=np.float32)
 else:
     tomo_file = 'plaza3_10'
     start_pos = np.array([0.0, 0.0], dtype=np.float32)
     end_pos = np.array([23.0, 10.0], dtype=np.float32)
+    
+'''
+start pose and end pose for forest:
+[21.22,7.34] [14.93,62.67]
+[35.96,6.53] [28.89,67.36]
+[45.33,16.55] [36.53,67.18]
+[13.40,19.27] [43.05,60.35]
+[9.19,26.52] [48.18,54.52]
+'''
 
+waypoint_file = 'waypoint'
 path_pub = rospy.Publisher("/pct_path", Path, latch=True, queue_size=1)
 planner = TomogramPlanner(cfg)
 
@@ -38,6 +52,7 @@ def pct_plan():
 
     traj_3d = planner.plan(start_pos, end_pos)
     if traj_3d is not None:
+        planner.writeWaypoint(waypoint_file,traj_3d)
         path_pub.publish(traj2ros(traj_3d))
         print("Trajectory published")
 

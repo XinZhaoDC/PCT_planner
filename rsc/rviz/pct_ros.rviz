@@ -69,6 +69,10 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Name: pointcloud
       Position Transformer: XYZ
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
       Queue Size: 10
       Selectable: true
       Size (Pixels): 2
@@ -99,6 +103,10 @@ Visualization Manager:
       Min Intensity: -20
       Name: tomogram
       Position Transformer: XYZ
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3

@@ -5,6 +5,7 @@ class ConfigPlanner():
 
 class ConfigWrapper():
     tomo_dir = '/rsc/tomogram/'
+    waypoint_dir = '/rsc/waypoint/'
 
 
 class Config():
