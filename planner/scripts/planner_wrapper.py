@@ -130,5 +130,5 @@ class TomogramPlanner(object):
                 x = waypoint[0]
                 y = waypoint[1]
                 z = waypoint[2]
-                lines=[str(x) + ',', str(y) + ',', str(z + 1.0)+'\n']            # 不知道是什么原因，生成的轨迹在z方向上加1.0无人机才能离地面1.6-1.7
+                lines=[str(x) + ',', str(y) + ',', str(z + 1.6)+'\n']            # 不知道是什么原因，生成的轨迹在z方向上加1.0无人机才能离地面1.6-1.7
                 f.writelines(lines)

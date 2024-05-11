@@ -6,7 +6,7 @@ class SceneBuilding():
     pcd.file_name = 'building2_9.pcd'
 
     map = SceneMap()
-    map.resolution = 0.10
+    map.resolution = 0.05
     map.ground_h = 0.0
     map.slice_dh = 0.5
 

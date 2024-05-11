@@ -1,17 +1,16 @@
 from .scene import ScenePCD, SceneMap, SceneTrav
 
-
-class SceneForest():
+class SceneShenkanMLS():
     pcd = ScenePCD()
-    pcd.file_name = 'WHU_TLS_Forest.pcd'
+    pcd.file_name = 'shenkan_MLS_building.pcd'
 
     map = SceneMap()
-    map.resolution = 0.10
-    map.ground_h = 5.0    # 大于森林地面的最高处
-    map.slice_dh = 0.5
+    map.resolution = 0.3
+    map.ground_h = 1.0
+    map.slice_dh = 1.0
 
     trav = SceneTrav()
-    trav.kernel_size = 3
+    trav.kernel_size = 1
     trav.interval_min = 1.6
     trav.interval_free = 1.7
     trav.slope_max = 1.0

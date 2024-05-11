@@ -12,7 +12,7 @@ sys.path.append('../')
 from config import Config
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--scene', type=str, default='Spiral', help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\', \'Forest\']')
+parser.add_argument('--scene', type=str, default='Spiral', help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\', \'Forest\', \'ShenkanMLS\']')
 args = parser.parse_args()
 
 cfg = Config()
@@ -26,21 +26,30 @@ elif args.scene == 'Building':
     start_pos = np.array([5.0, 5.0], dtype=np.float32)
     end_pos = np.array([-6.0, -1.0], dtype=np.float32)
 elif args.scene == 'Forest':
-    tomo_file = 'path_planning'
+    tomo_file = 'WHU_TLS_Forest'
     start_pos = np.array([13.40,19.27], dtype=np.float32)
     end_pos = np.array([43.05,60.35], dtype=np.float32)
+elif args.scene == 'ShenkanMLS':
+    tomo_file = 'shenkan_MLS_building'
+    start_pos = np.array([507, 115], dtype=np.float32)
+    end_pos = np.array([54, 20], dtype=np.float32)
 else:
     tomo_file = 'plaza3_10'
     start_pos = np.array([0.0, 0.0], dtype=np.float32)
     end_pos = np.array([23.0, 10.0], dtype=np.float32)
     
 '''
-start pose and end pose for forest:
+start pose and end pose for Forest:
 [21.22,7.34] [14.93,62.67]
 [35.96,6.53] [28.89,67.36]
 [45.33,16.55] [36.53,67.18]
 [13.40,19.27] [43.05,60.35]
 [9.19,26.52] [48.18,54.52]
+'''
+
+'''
+start pose and end pose for Shenkan_MLS:
+[507.9080 115.0592 1.4566] [54.6010 20.4289 1.4659]
 '''
 
 waypoint_file = 'waypoint'
