@@ -31,8 +31,8 @@ elif args.scene == 'Forest':
     end_pos = np.array([43.05,60.35], dtype=np.float32)
 elif args.scene == 'ShenkanMLS':
     tomo_file = 'shenkan_MLS_building'
-    start_pos = np.array([507, 115], dtype=np.float32)
-    end_pos = np.array([54, 20], dtype=np.float32)
+    start_pos = np.array([54, 20], dtype=np.float32)
+    end_pos = np.array([507, 115], dtype=np.float32)
 else:
     tomo_file = 'plaza3_10'
     start_pos = np.array([0.0, 0.0], dtype=np.float32)
@@ -50,9 +50,10 @@ start pose and end pose for Forest:
 '''
 start pose and end pose for Shenkan_MLS:
 [507.9080 115.0592 1.4566] [54.6010 20.4289 1.4659]
+[54 20] [507 115]
 '''
 
-waypoint_file = 'waypoint'
+waypoint_file = 'newwaypoint'
 path_pub = rospy.Publisher("/pct_path", Path, latch=True, queue_size=1)
 planner = TomogramPlanner(cfg)
 
