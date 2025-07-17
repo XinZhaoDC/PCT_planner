@@ -77,7 +77,17 @@ The source code is released under [GPLv2](http://www.gnu.org/licenses/) license.
 For commercial use, please contact Bowen Yang [byangar@connect.ust.hk](mailto:byangar@connect.ust.hk).
 
 
+# config
+## tomography
+__init__.py: add scene
+config:add scene param
+tomography.py: add help definition
+
+## planner
+
+
+
 # use
 python3 tomography.py --scene ShenkanMLS
-
+python3 plan.py --scene ShenkanMLS
 rviz -d rsc/rviz/pct_ros.rviz

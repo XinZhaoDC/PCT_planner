@@ -1,7 +1,7 @@
 from .scene import ScenePCD, SceneMap, SceneTrav
 
 
-class SceneForest():
+class SceneWHUTLSForest():
     pcd = ScenePCD()
     pcd.file_name = 'WHU_TLS_Forest.pcd'
 
