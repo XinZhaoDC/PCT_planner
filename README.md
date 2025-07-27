@@ -88,6 +88,6 @@ tomography.py: add help definition
 
 
 # use
-python3 tomography.py --scene ShenkanMLS
-python3 plan.py --scene ShenkanMLS
+cd tomography/scripts/ && python3 tomography.py --scene ShenkanMLS
+cd planner/scripts/ && python3 plan.py --scene ShenkanMLS
 rviz -d rsc/rviz/pct_ros.rviz

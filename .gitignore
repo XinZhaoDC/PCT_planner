@@ -11,7 +11,4 @@ __pycache__/
 build/
 install/
 *waypoint*.txt
-!plaza3_10.pcd
-!building2_9.pcd
-
 

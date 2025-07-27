@@ -106,8 +106,8 @@ elif args.scene == 'GXForestGG2':
     - 应用: 森林监测和巡检
     """
     tomo_file = 'GXForestGG2'
-    start_pos = np.array([-57.879,51.645], dtype=np.float32)
-    end_pos = np.array([68.674,151.844], dtype=np.float32)
+    start_pos = np.array([-41.898,149.540], dtype=np.float32)
+    end_pos = np.array([65.612,74.909], dtype=np.float32)
     
 else:
     """
@@ -154,7 +154,7 @@ GX_Forest_GG2 场景的其他起终点组合:
 '''
 
 # 输出配置
-waypoint_file = 'newwaypoint'  # 路径点文件名 (不含扩展名)
+waypoint_file = tomo_file +'_waypoint'  # 路径点文件名 (不含扩展名)
 
 # ROS 发布者设置
 path_pub = rospy.Publisher("/pct_path", Path, latch=True, queue_size=1)
