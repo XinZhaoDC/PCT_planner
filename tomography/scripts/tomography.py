@@ -166,7 +166,7 @@ class Tomography(object):
         
         # 计算地图中心点
         self.center = (self.points_max[:2] + self.points_min[:2]) / 2
-        self.slice_h0 = self. [-1] + self.slice_dh
+        self.slice_h0 = self.points_min[-1] + self.slice_dh
         
         # 初始化 Tomogram 对象的映射环境
         self.tomogram.initMappingEnv(self.center, self.map_dim_x, self.map_dim_y, n_slice_init, self.slice_h0)
