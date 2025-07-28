@@ -424,6 +424,8 @@ if __name__ == '__main__':
     - Building: 建筑物场景
     - Plaza: 广场场景
     - WHU_TLS_Forest: WHUTLS森林
+    - GXForestGG2: 广西森林 GG2 场景
+    - GXForestGG3: 广西森林 GG3 场景
     - ShenkanMLS: 深勘 MLS 建筑场景
     
     使用方法：
@@ -434,7 +436,7 @@ if __name__ == '__main__':
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='点云层析成像处理节点')
     parser.add_argument('--scene', type=str, required=True,
-                       help='场景名称. 可选: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'GXForestGG2\', \'ShenkanMLS\']')
+                       help='场景名称. 可选: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'GXForestGG2\', \'GXForestGG3\', \'ShenkanMLS\']')
     args = parser.parse_args()
 
     # 加载配置文件

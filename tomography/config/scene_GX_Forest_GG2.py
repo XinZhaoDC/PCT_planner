@@ -6,7 +6,7 @@ class SceneGXForestGG2():
     pcd.file_name = 'GXForestGG2.pcd'
 
     map = SceneMap()
-    map.resolution = 0.5
+    map.resolution = 0.50
     map.ground_h = 0.0    # 场景最低点
     map.slice_dh = 1.0
 

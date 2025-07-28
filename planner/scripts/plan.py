@@ -45,7 +45,7 @@ from config import Config
 # 命令行参数解析
 parser = argparse.ArgumentParser()
 parser.add_argument('--scene', type=str, default='Spiral', 
-                   help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'ShenkanMLS\', \'GXForestGG2\']')
+                   help='Name of the scene. Available: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'ShenkanMLS\', \'GXForestGG2\', \'GXForestGG3\']')
 args = parser.parse_args()
 
 # 加载配置
@@ -109,6 +109,17 @@ elif args.scene == 'GXForestGG2':
     start_pos = np.array([-41.898,149.540], dtype=np.float32)
     end_pos = np.array([65.612,74.909], dtype=np.float32)
     
+elif args.scene == 'GXForestGG3':
+    """
+    广西森林环境数据
+    - 环境特点: 自然森林环境
+    - 难度: 高
+    - 应用: 森林监测和巡检
+    """
+    tomo_file = 'GXForestGG3'
+    start_pos = np.array([-86.218,-11.500], dtype=np.float32)
+    end_pos = np.array([77.656,0.500], dtype=np.float32)
+
 else:
     """
     默认场景: 广场环境
@@ -148,6 +159,17 @@ GX_Forest_GG2 场景的其他起终点组合:
 - 路径3: [-14.333,1.933] -> [29.644,188.636]
 - 路径4: [-41.898,149.540] -> [65.612,74.909] 
 
+
+这些坐标对应森林中不同的可通行区域，
+可用于测试不同长度和复杂度的路径规划
+'''
+
+'''
+GX_Forest_GG3 场景的其他起终点组合:
+- 路径1: [-88.532,-67.000] -> [85.343,62.750]
+- 路径2: [-18.594,-70.000] -> [20.844,70.500]
+- 路径3: [71.532,-80.500] -> [-36.532,76.500]
+- 路径4: [-86.218,-11.500] -> [77.656,0.500]
 
 这些坐标对应森林中不同的可通行区域，
 可用于测试不同长度和复杂度的路径规划
