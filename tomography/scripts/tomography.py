@@ -22,7 +22,6 @@ import sys
 import time
 import pickle
 import numpy as np
-import open3d as o3d
   
 import rospy
 from std_msgs.msg import Header
@@ -37,6 +36,99 @@ from config import Config
 
 # 获取项目根目录路径
 rsg_root = os.path.dirname(os.path.abspath(__file__)) + '/../..'
+
+
+def _pcd_scalar_dtype(field_type, field_size):
+    type_map = {
+        ('F', 4): '<f4', ('F', 8): '<f8',
+        ('I', 1): '<i1', ('I', 2): '<i2', ('I', 4): '<i4', ('I', 8): '<i8',
+        ('U', 1): '<u1', ('U', 2): '<u2', ('U', 4): '<u4', ('U', 8): '<u8',
+    }
+    try:
+        return np.dtype(type_map[(field_type, field_size)])
+    except KeyError as exc:
+        raise ValueError(
+            'Unsupported PCD field type/size: %s/%s' % (field_type, field_size)
+        ) from exc
+
+
+def load_pcd_xyz(pcd_path):
+    """Load XYZ using the declared PCD record layout, without fixed offsets."""
+    header = {}
+    header_lines = 0
+    with open(pcd_path, 'rb') as handle:
+        while True:
+            raw_line = handle.readline()
+            if not raw_line:
+                raise ValueError('PCD header has no DATA entry: ' + pcd_path)
+            header_lines += 1
+            line = raw_line.decode('ascii').strip()
+            if not line or line.startswith('#'):
+                continue
+            key, *values = line.split()
+            header[key.upper()] = values
+            if key.upper() == 'DATA':
+                data_offset = handle.tell()
+                break
+
+    fields = header['FIELDS']
+    sizes = [int(value) for value in header['SIZE']]
+    types = header['TYPE']
+    counts = [int(value) for value in header.get('COUNT', ['1'] * len(fields))]
+    if not (len(fields) == len(sizes) == len(types) == len(counts)):
+        raise ValueError('Inconsistent FIELDS/SIZE/TYPE/COUNT entries in ' + pcd_path)
+    for axis in ('x', 'y', 'z'):
+        if axis not in fields:
+            raise ValueError('PCD is missing field %s: %s' % (axis, pcd_path))
+
+    data_mode = header['DATA'][0].lower()
+    point_count = int(header.get('POINTS', header['WIDTH'])[0])
+    if data_mode == 'ascii':
+        scalar_offsets = {}
+        scalar_index = 0
+        for field, count in zip(fields, counts):
+            scalar_offsets[field] = scalar_index
+            scalar_index += count
+        return np.loadtxt(
+            pcd_path,
+            dtype=np.float32,
+            comments='#',
+            skiprows=header_lines,
+            usecols=[scalar_offsets[axis] for axis in ('x', 'y', 'z')],
+        )
+
+    if data_mode != 'binary':
+        import open3d as o3d
+        cloud = o3d.io.read_point_cloud(pcd_path)
+        return np.asarray(cloud.points, dtype=np.float32)
+
+    names = []
+    formats = []
+    offsets = []
+    byte_offset = 0
+    for field, size, field_type, count in zip(fields, sizes, types, counts):
+        names.append(field)
+        scalar_dtype = _pcd_scalar_dtype(field_type, size)
+        formats.append(scalar_dtype if count == 1 else (scalar_dtype, (count,)))
+        offsets.append(byte_offset)
+        byte_offset += size * count
+
+    record_dtype = np.dtype({
+        'names': names,
+        'formats': formats,
+        'offsets': offsets,
+        'itemsize': byte_offset,
+    })
+    records = np.memmap(
+        pcd_path,
+        dtype=record_dtype,
+        mode='r',
+        offset=data_offset,
+        shape=(point_count,),
+    )
+    return np.column_stack((records['x'], records['y'], records['z'])).astype(
+        np.float32, copy=False
+    )
 
 
 class Tomography(object):
@@ -55,7 +147,8 @@ class Tomography(object):
     3. 发布 ROS 消息用于可视化
     4. 导出结果文件
     """
-    def __init__(self, cfg, scene_cfg):
+    def __init__(self, cfg, scene_cfg, pcd_path=None, output_dir=None,
+                 publish_results=True, benchmark_repeats=10):
         """
         初始化 Tomography 对象
         
@@ -70,8 +163,23 @@ class Tomography(object):
         4. 执行层析成像处理
         """
         # 设置导出目录和点云文件路径
-        self.export_dir = rsg_root + cfg.map.export_dir
+        # Original defaults are kept for existing scene configurations:
+        #   input:  <repo>/rsc/pcd/<scene_cfg.pcd.file_name>
+        #   output: <repo><cfg.map.export_dir>
+        self.export_dir = (
+            os.path.abspath(output_dir)
+            if output_dir is not None
+            else rsg_root + cfg.map.export_dir
+        )
         self.pcd_file = scene_cfg.pcd.file_name
+        self.pcd_path = (
+            os.path.abspath(pcd_path)
+            if pcd_path is not None
+            else os.path.join(rsg_root, "rsc", "pcd", self.pcd_file)
+        )
+        self.publish_results = publish_results
+        self.benchmark_repeats = benchmark_repeats
+        os.makedirs(self.export_dir, exist_ok=True)
         
         # 地图基本参数
         self.resolution = scene_cfg.map.resolution  # 网格分辨率
@@ -85,7 +193,7 @@ class Tomography(object):
         self.tomogram = Tomogram(scene_cfg)
         
         # 加载点云数据
-        points = self.loadPCD(self.pcd_file)
+        points = self.loadPCD(self.pcd_path)
 
         # 执行层析成像处理
         self.process(points)
@@ -133,21 +241,20 @@ class Tomography(object):
         加载点云数据并计算地图参数
         
         参数：
-        - pcd_file: 点云文件名 (相对于 rsc/pcd/ 目录)
+        - pcd_file: 点云文件的绝对路径
         
         返回：
         - points: 处理后的点云数据 (N x 3 数组)
         
         功能：
-        1. 使用 Open3D 加载 PCD 文件
+        1. 按 PCD 头部声明的字段布局加载点云
         2. 计算点云边界和地图尺寸
         3. 确定地图中心点和切片参数
         4. 初始化 Tomogram 对象的映射环境
         5. 生成可视化原型数据
         """
         # 加载点云文件
-        pcd = o3d.io.read_point_cloud(rsg_root + "/rsc/pcd/" + pcd_file)
-        points = np.asarray(pcd.points).astype(np.float32)
+        points = load_pcd_xyz(pcd_file)
         rospy.loginfo("PCD points: %d", points.shape[0])
 
         # 确保点云数据为 3D 坐标
@@ -206,7 +313,7 @@ class Tomography(object):
         t_trav = 0.0   # 可通行性分析时间
         t_simp = 0.0   # 层简化时间
         t_all = 0.0    # 总时间
-        n_repeat = 10  # 重复次数
+        n_repeat = self.benchmark_repeats
 
         """
         GPU 时间基准测试
@@ -232,24 +339,26 @@ class Tomography(object):
         # 输出性能统计信息
         rospy.loginfo("Num slices simp: %d", layers_g.shape[0])
         rospy.loginfo("Num repeats (for benchmarking only): %d", n_repeat)
-        rospy.loginfo(" -- avg t_map  (ms): %f", t_map / n_repeat)
-        rospy.loginfo(" -- avg t_trav (ms): %f", t_trav / n_repeat)
-        rospy.loginfo(" -- avg t_simp (ms): %f", t_simp / n_repeat)
-        rospy.loginfo(" -- avg t_all  (ms): %f", t_all / n_repeat)
+        if n_repeat > 0:
+            rospy.loginfo(" -- avg t_map  (ms): %f", t_map / n_repeat)
+            rospy.loginfo(" -- avg t_trav (ms): %f", t_trav / n_repeat)
+            rospy.loginfo(" -- avg t_simp (ms): %f", t_simp / n_repeat)
+            rospy.loginfo(" -- avg t_all  (ms): %f", t_all / n_repeat)
 
         # 保存简化后的层数
         self.n_slice = layers_g.shape[0]
 
         # 导出处理结果
-        map_file = os.path.splitext(self.pcd_file)[0]
+        map_file = os.path.splitext(os.path.basename(self.pcd_path))[0]
         self.exportTomogram(np.stack((layers_t, trav_grad_x, trav_grad_y, layers_g, layers_c)), map_file)
 
         # 初始化 ROS 发布者并发布结果
-        self.initROS()
-        self.publishPoints(points)
-        self.publishLayers(self.layer_G_pub_list, layers_g, layers_t)
-        self.publishLayers(self.layer_C_pub_list, layers_c, None)
-        self.publishTomogram(layers_g, layers_t)
+        if self.publish_results:
+            self.initROS()
+            self.publishPoints(points)
+            self.publishLayers(self.layer_G_pub_list, layers_g, layers_t)
+            self.publishLayers(self.layer_C_pub_list, layers_c, None)
+            self.publishTomogram(layers_g, layers_t)
 
     def exportTomogram(self, tomogram, map_file):
         """
@@ -276,10 +385,11 @@ class Tomography(object):
         
         # 保存到 pickle 文件
         file_name = map_file + '.pickle'
-        with open(self.export_dir + file_name, 'wb') as handle:
+        output_path = os.path.join(self.export_dir, file_name)
+        with open(output_path, 'wb') as handle:
             pickle.dump(data_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        rospy.loginfo("Tomogram exported: %s", file_name)
+        rospy.loginfo("Tomogram exported: %s", output_path)
 
     def publishPoints(self, points):
         """
@@ -437,6 +547,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='点云层析成像处理节点')
     parser.add_argument('--scene', type=str, required=True,
                        help='场景名称. 可选: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'GXForestGG2\', \'GXForestGG3\', \'ShenkanMLS\']')
+    parser.add_argument('--pcd-file', type=str,
+                        help='输入 PCD 的绝对路径；省略时使用原 rsc/pcd 场景资源')
+    parser.add_argument('--output-dir', type=str,
+                        help='tomogram 输出目录；省略时使用原 rsc/tomogram 目录')
+    parser.add_argument('--benchmark-repeats', type=int, default=10,
+                        help='预热后重复计算次数；验证复现时保持默认 10')
+    parser.add_argument('--no-publish', action='store_true',
+                        help='不发布大型 ROS 可视化消息，适合离线批处理')
+    parser.add_argument('--no-spin', action='store_true',
+                        help='处理并写出结果后直接退出')
     args = parser.parse_args()
 
     # 加载配置文件
@@ -447,7 +567,15 @@ if __name__ == '__main__':
     rospy.init_node('pointcloud_tomography', anonymous=True)
 
     # 创建并启动层析成像处理对象
-    mapping = Tomography(cfg, scene_cfg)
+    mapping = Tomography(
+        cfg,
+        scene_cfg,
+        pcd_path=args.pcd_file,
+        output_dir=args.output_dir,
+        publish_results=not args.no_publish,
+        benchmark_repeats=args.benchmark_repeats,
+    )
 
     # 保持节点运行
-    rospy.spin()
+    if not args.no_spin:
+        rospy.spin()

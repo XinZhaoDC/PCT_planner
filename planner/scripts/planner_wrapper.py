@@ -63,7 +63,7 @@ class TomogramPlanner(object):
     - offset: 地图中心偏移
     """
     
-    def __init__(self, cfg):
+    def __init__(self, cfg, tomo_dir=None, waypoint_dir=None):
         """
         初始化规划器
         
@@ -81,8 +81,18 @@ class TomogramPlanner(object):
         self.max_heading_rate = self.cfg.planner.max_heading_rate
 
         # 文件路径
-        self.tomo_dir = rsg_root + self.cfg.wrapper.tomo_dir
-        self.waypoint_dir = rsg_root + self.cfg.wrapper.waypoint_dir
+        # Keep the original repository resource paths as defaults. Batch jobs can
+        # provide absolute directories without changing those historical paths.
+        self.tomo_dir = (
+            os.path.abspath(tomo_dir)
+            if tomo_dir is not None
+            else rsg_root + self.cfg.wrapper.tomo_dir
+        )
+        self.waypoint_dir = (
+            os.path.abspath(waypoint_dir)
+            if waypoint_dir is not None
+            else rsg_root + self.cfg.wrapper.waypoint_dir
+        )
 
         # 地图参数 (将在加载断层图时初始化)
         self.resolution = None        # 地图分辨率
@@ -117,7 +127,7 @@ class TomogramPlanner(object):
         - slice_h0: 第一层高度
         - slice_dh: 层间高度差
         """
-        with open(self.tomo_dir + tomo_file + '.pickle', 'rb') as handle:
+        with open(os.path.join(self.tomo_dir, tomo_file + '.pickle'), 'rb') as handle:
             data_dict = pickle.load(handle)
 
             # 加载断层图数据 (5层 x 高度层 x 宽度 x 高度)
@@ -274,7 +284,7 @@ class TomogramPlanner(object):
         idx = np.array([idx[1], idx[0]], dtype=np.float32)  # 交换 x, y 坐标
         return idx
     
-    def writeWaypoint(self, waypoint_file, traj):
+    def writeWaypoint(self, waypoint_file, traj, append=True, write_pcd=False):
         """
         将轨迹写入路径点文件
         
@@ -291,8 +301,13 @@ class TomogramPlanner(object):
         - 使用追加模式 ('a+')
         - 高度偏移用于补偿无人机离地高度
         """
-        with open(self.waypoint_dir + waypoint_file + '.txt', 'a+') as f:
-            for waypoint in traj:
+        os.makedirs(self.waypoint_dir, exist_ok=True)
+        output_traj = np.asarray(traj, dtype=np.float64).copy()
+        output_traj[:, 2] += 1.6
+        mode = 'a+' if append else 'w'
+        txt_path = os.path.join(self.waypoint_dir, waypoint_file + '.txt')
+        with open(txt_path, mode) as f:
+            for waypoint in output_traj:
                 x = waypoint[0]
                 y = waypoint[1]
                 z = waypoint[2]
@@ -306,5 +321,40 @@ class TomogramPlanner(object):
                 # 3. 最终添加 1.6m 安全偏移，确保无人机保持足够离地高度
                 # 
                 # 总结：z = 地面高程 + 0.1m (reference_height_) + 平滑处理 + 1.6m (安全偏移)
-                lines=[str(x) + ',', str(y) + ',', str(z + 1.6)+'\n']
+                lines=[str(x) + ',', str(y) + ',', str(z)+'\n']
                 f.writelines(lines)
+
+        if write_pcd:
+            self.writeWaypointPcd(waypoint_file, output_traj)
+
+        return txt_path
+
+    def writeWaypointPcd(self, waypoint_file, traj):
+        """Write the binary PCL PointXYZ layout consumed by Marsim."""
+        points = np.empty(
+            len(traj),
+            dtype=[('x', '<f4'), ('y', '<f4'), ('z', '<f4'), ('_', '<u4')],
+        )
+        points['x'] = traj[:, 0]
+        points['y'] = traj[:, 1]
+        points['z'] = traj[:, 2]
+        points['_'] = np.float32(1.0).view(np.uint32)
+
+        pcd_path = os.path.join(self.waypoint_dir, waypoint_file + '.pcd')
+        header = (
+            '# .PCD v0.7 - Point Cloud Data file format\n'
+            'VERSION 0.7\n'
+            'FIELDS x y z _\n'
+            'SIZE 4 4 4 1\n'
+            'TYPE F F F U\n'
+            'COUNT 1 1 1 4\n'
+            f'WIDTH {len(points)}\n'
+            'HEIGHT 1\n'
+            'VIEWPOINT 0 0 0 1 0 0 0\n'
+            f'POINTS {len(points)}\n'
+            'DATA binary\n'
+        )
+        with open(pcd_path, 'wb') as handle:
+            handle.write(header.encode('ascii'))
+            handle.write(points.tobytes())
+        return pcd_path
