@@ -14,13 +14,14 @@
 集成了数据加载、处理、可视化和导出功能。
 
 使用方法：
-python3 tomography.py --scene Plaza
+python3 tomography.py --scene plaza
 """
 
 import os
 import sys
 import time
 import pickle
+from pathlib import Path
 import numpy as np
   
 import rospy
@@ -28,14 +29,16 @@ from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
-from tomogram import Tomogram
+SCRIPT_DIR = Path(__file__).resolve().parent
+TOMOGRAPHY_ROOT = SCRIPT_DIR.parent
+REPOSITORY_ROOT = TOMOGRAPHY_ROOT.parent
+sys.path.insert(0, str(REPOSITORY_ROOT))
+sys.path.insert(0, str(TOMOGRAPHY_ROOT))
 
-sys.path.append('../')
+from tomogram import Tomogram
 from config import POINT_FIELDS_XYZI, GRID_POINTS_XYZI
 from config import Config
-
-# 获取项目根目录路径
-rsg_root = os.path.dirname(os.path.abspath(__file__)) + '/../..'
+from pct_config import available_scenes, load_scene
 
 
 def _pcd_scalar_dtype(field_type, field_size):
@@ -147,7 +150,7 @@ class Tomography(object):
     3. 发布 ROS 消息用于可视化
     4. 导出结果文件
     """
-    def __init__(self, cfg, scene_cfg, pcd_path=None, output_dir=None,
+    def __init__(self, cfg, scene_cfg, pcd_path, tomogram_path,
                  publish_results=True, benchmark_repeats=10):
         """
         初始化 Tomography 对象
@@ -162,21 +165,10 @@ class Tomography(object):
         3. 加载点云数据
         4. 执行层析成像处理
         """
-        # 设置导出目录和点云文件路径
-        # Original defaults are kept for existing scene configurations:
-        #   input:  <repo>/rsc/pcd/<scene_cfg.pcd.file_name>
-        #   output: <repo><cfg.map.export_dir>
-        self.export_dir = (
-            os.path.abspath(output_dir)
-            if output_dir is not None
-            else rsg_root + cfg.map.export_dir
-        )
-        self.pcd_file = scene_cfg.pcd.file_name
-        self.pcd_path = (
-            os.path.abspath(pcd_path)
-            if pcd_path is not None
-            else os.path.join(rsg_root, "rsc", "pcd", self.pcd_file)
-        )
+        # 输入与输出路径由共享 scene_<name>.py 配置提供。
+        self.pcd_path = os.path.abspath(pcd_path)
+        self.tomogram_path = os.path.abspath(tomogram_path)
+        self.export_dir = os.path.dirname(self.tomogram_path)
         self.publish_results = publish_results
         self.benchmark_repeats = benchmark_repeats
         os.makedirs(self.export_dir, exist_ok=True)
@@ -349,8 +341,9 @@ class Tomography(object):
         self.n_slice = layers_g.shape[0]
 
         # 导出处理结果
-        map_file = os.path.splitext(os.path.basename(self.pcd_path))[0]
-        self.exportTomogram(np.stack((layers_t, trav_grad_x, trav_grad_y, layers_g, layers_c)), map_file)
+        self.exportTomogram(
+            np.stack((layers_t, trav_grad_x, trav_grad_y, layers_g, layers_c))
+        )
 
         # 初始化 ROS 发布者并发布结果
         if self.publish_results:
@@ -360,14 +353,14 @@ class Tomography(object):
             self.publishLayers(self.layer_C_pub_list, layers_c, None)
             self.publishTomogram(layers_g, layers_t)
 
-    def exportTomogram(self, tomogram, map_file):
+    def exportTomogram(self, tomogram):
         """
         导出层析成像结果到 pickle 文件
         
         参数：
         - tomogram: 层析成像数据数组 (5 x n_slice x height x width)
                    包含: layers_t, trav_grad_x, trav_grad_y, layers_g, layers_c
-        - map_file: 输出文件名 (不含扩展名)
+        - 输出文件路径来自当前场景的 tomogram_file 配置
         
         功能：
         - 将处理结果保存为 pickle 文件
@@ -383,13 +376,11 @@ class Tomography(object):
             'slice_dh': self.slice_dh,           # 切片间距
         }
         
-        # 保存到 pickle 文件
-        file_name = map_file + '.pickle'
-        output_path = os.path.join(self.export_dir, file_name)
-        with open(output_path, 'wb') as handle:
+        # 保存到场景配置指定的 pickle 文件
+        with open(self.tomogram_path, 'wb') as handle:
             pickle.dump(data_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        rospy.loginfo("Tomogram exported: %s", output_path)
+        rospy.loginfo("Tomogram exported: %s", self.tomogram_path)
 
     def publishPoints(self, points):
         """
@@ -530,27 +521,29 @@ if __name__ == '__main__':
     5. 保持节点运行
     
     支持的场景：
-    - Spiral: 螺旋形场景
-    - Building: 建筑物场景
-    - Plaza: 广场场景
-    - WHU_TLS_Forest: WHUTLS森林
-    - GXForestGG2: 广西森林 GG2 场景
-    - GXForestGG3: 广西森林 GG3 场景
-    - ShenkanMLS: 深勘 MLS 建筑场景
+    - spiral: 螺旋形场景
+    - building: 建筑物场景
+    - plaza: 广场场景
+    - whu_tls_forest: WHUTLS森林
+    - gx_forest_gg2: 广西森林 GG2 场景
+    - gx_forest_gg3: 广西森林 GG3 场景
+    - shenkan_mls: 深勘 MLS 建筑场景
     
     使用方法：
-    python3 tomography.py --scene Plaza
+    python3 tomography.py --scene plaza
     """
     import argparse
 
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='点云层析成像处理节点')
     parser.add_argument('--scene', type=str, required=True,
-                       help='场景名称. 可选: [\'Spiral\', \'Building\', \'Plaza\', \'WHUTLSForest\', \'GXForestGG2\', \'GXForestGG3\', \'ShenkanMLS\']')
+                       help='小写场景名；可选: ' + ', '.join(available_scenes()))
     parser.add_argument('--pcd-file', type=str,
-                        help='输入 PCD 的绝对路径；省略时使用原 rsc/pcd 场景资源')
+                        help='覆盖 scene_<name>.py 中的 PCD 输入路径')
+    parser.add_argument('--tomogram-file', type=str,
+                        help='覆盖 scene_<name>.py 中的 tomogram 完整输出路径')
     parser.add_argument('--output-dir', type=str,
-                        help='tomogram 输出目录；省略时使用原 rsc/tomogram 目录')
+                        help='兼容旧命令：覆盖输出目录并保留场景配置的文件名')
     parser.add_argument('--benchmark-repeats', type=int, default=10,
                         help='预热后重复计算次数；验证复现时保持默认 10')
     parser.add_argument('--no-publish', action='store_true',
@@ -561,7 +554,16 @@ if __name__ == '__main__':
 
     # 加载配置文件
     cfg = Config()  # 全局配置 (ROS 话题、导出路径等)
-    scene_cfg = getattr(__import__('config'), 'Scene' + args.scene)  # 场景配置
+    scene_cfg = load_scene(args.scene)
+    pcd_path = Path(args.pcd_file).expanduser().resolve() if args.pcd_file else scene_cfg.pcd_file
+    if args.tomogram_file:
+        tomogram_path = Path(args.tomogram_file).expanduser().resolve()
+    elif args.output_dir:
+        tomogram_path = (
+            Path(args.output_dir).expanduser().resolve() / scene_cfg.tomogram_file.name
+        )
+    else:
+        tomogram_path = scene_cfg.tomogram_file
 
     # 初始化 ROS 节点
     rospy.init_node('pointcloud_tomography', anonymous=True)
@@ -570,8 +572,8 @@ if __name__ == '__main__':
     mapping = Tomography(
         cfg,
         scene_cfg,
-        pcd_path=args.pcd_file,
-        output_dir=args.output_dir,
+        pcd_path=pcd_path,
+        tomogram_path=tomogram_path,
         publish_results=not args.no_publish,
         benchmark_repeats=args.benchmark_repeats,
     )

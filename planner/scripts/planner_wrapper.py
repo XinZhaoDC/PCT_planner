@@ -39,9 +39,6 @@ from utils import *
 sys.path.append('../')
 from lib import a_star, ele_planner, traj_opt
 
-rsg_root = os.path.dirname(os.path.abspath(__file__)) + '/../..'
-
-
 class TomogramPlanner(object):
     """
     基于断层图的路径规划器
@@ -63,7 +60,7 @@ class TomogramPlanner(object):
     - offset: 地图中心偏移
     """
     
-    def __init__(self, cfg, tomo_dir=None, waypoint_dir=None):
+    def __init__(self, cfg, waypoint_dir, waypoint_offset=(0.0, 0.0, 1.6)):
         """
         初始化规划器
         
@@ -71,8 +68,8 @@ class TomogramPlanner(object):
         - cfg: 配置对象，包含以下字段：
             - planner.use_quintic: 是否使用五次样条插值
             - planner.max_heading_rate: 最大航向角变化率
-            - wrapper.tomo_dir: 断层图文件目录
-            - wrapper.waypoint_dir: 路径点输出目录
+        - waypoint_dir: 路径点输出目录
+        - waypoint_offset: 写出 waypoint 时应用的 [x, y, z] 三轴偏移
         """
         self.cfg = cfg
 
@@ -80,19 +77,11 @@ class TomogramPlanner(object):
         self.use_quintic = self.cfg.planner.use_quintic
         self.max_heading_rate = self.cfg.planner.max_heading_rate
 
-        # 文件路径
-        # Keep the original repository resource paths as defaults. Batch jobs can
-        # provide absolute directories without changing those historical paths.
-        self.tomo_dir = (
-            os.path.abspath(tomo_dir)
-            if tomo_dir is not None
-            else rsg_root + self.cfg.wrapper.tomo_dir
-        )
-        self.waypoint_dir = (
-            os.path.abspath(waypoint_dir)
-            if waypoint_dir is not None
-            else rsg_root + self.cfg.wrapper.waypoint_dir
-        )
+        # 文件路径和导出偏移由共享 scene_<name>.py 配置提供。
+        self.waypoint_dir = os.path.abspath(waypoint_dir)
+        self.waypoint_offset = np.asarray(waypoint_offset, dtype=np.float64)
+        if self.waypoint_offset.shape != (3,):
+            raise ValueError('waypoint_offset must contain exactly x, y, z values')
 
         # 地图参数 (将在加载断层图时初始化)
         self.resolution = None        # 地图分辨率
@@ -107,12 +96,12 @@ class TomogramPlanner(object):
         self.start_idx = np.zeros(3, dtype=np.int32)
         self.end_idx = np.zeros(3, dtype=np.int32)
 
-    def loadTomogram(self, tomo_file):
+    def loadTomogram(self, tomogram_file):
         """
         加载断层图数据
         
         参数：
-        - tomo_file: 断层图文件名 (不含扩展名)
+        - tomogram_file: 断层图 pickle 文件的完整路径
         
         功能：
         1. 从 pickle 文件加载断层图数据
@@ -127,7 +116,7 @@ class TomogramPlanner(object):
         - slice_h0: 第一层高度
         - slice_dh: 层间高度差
         """
-        with open(os.path.join(self.tomo_dir, tomo_file + '.pickle'), 'rb') as handle:
+        with open(os.path.abspath(tomogram_file), 'rb') as handle:
             data_dict = pickle.load(handle)
 
             # 加载断层图数据 (5层 x 高度层 x 宽度 x 高度)
@@ -295,7 +284,7 @@ class TomogramPlanner(object):
         功能：
         1. 将轨迹点写入文本文件
         2. 格式：每行一个点 "x,y,z"
-        3. 自动添加高度偏移 (z + 1.6)
+        3. 自动添加场景配置的三轴 waypoint_offset
         
         注意：
         - 使用追加模式 ('a+')
@@ -303,7 +292,7 @@ class TomogramPlanner(object):
         """
         os.makedirs(self.waypoint_dir, exist_ok=True)
         output_traj = np.asarray(traj, dtype=np.float64).copy()
-        output_traj[:, 2] += 1.6
+        output_traj += self.waypoint_offset
         mode = 'a+' if append else 'w'
         txt_path = os.path.join(self.waypoint_dir, waypoint_file + '.txt')
         with open(txt_path, mode) as f:
@@ -318,9 +307,11 @@ class TomogramPlanner(object):
                 #    - GetHeight() 从断层图的 elev_g (地面高程) 数据中获取
                 #    - reference_height_ 默认为 0.1m (相对地面的飞行高度)
                 #    - 然后通过 HeightSmoother 进行三次样条平滑
-                # 3. 最终添加 1.6m 安全偏移，确保无人机保持足够离地高度
+                # 3. 最终添加 scene_<name>.py 配置的三轴输出偏移；
+                #    历史默认值为 [0.0, 0.0, 1.6]，确保无人机保持足够离地高度
                 # 
-                # 总结：z = 地面高程 + 0.1m (reference_height_) + 平滑处理 + 1.6m (安全偏移)
+                # 总结：导出坐标 = 规划轨迹 + 场景 waypoint_offset
+                # 其中历史 z = 地面高程 + 0.1m (reference_height_) + 平滑处理 + 1.6m
                 lines=[str(x) + ',', str(y) + ',', str(z)+'\n']
                 f.writelines(lines)
 

@@ -7,10 +7,5 @@ class ConfigROS():
     tomogram_topic = "/tomogram"
 
 
-class ConfigMap():
-    export_dir = "/rsc/tomogram/"
-
-
 class Config():
     ros = ConfigROS()
-    map = ConfigMap()
