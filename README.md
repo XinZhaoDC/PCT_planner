@@ -35,7 +35,8 @@ trees.
 
 ## Scene Configuration
 
-Tomography and planning share one scene definition under `pct_config/scenes/`. All scene names use lowercase snake case. The available scenes are:
+Tomography and planning share one scene definition under `pct_config/scenes/`.
+All scene names use lowercase snake case. The available scenes are:
 
 ```text
 building
@@ -47,18 +48,80 @@ spiral
 whu_tls_forest
 ```
 
-Each `scene_<name>.py` owns all scene-specific configuration:
+`--scene <name>` is resolved dynamically to
+`pct_config/scenes/scene_<name>.py`; the tomography and planning entry points
+contain no scene-specific branches. Each module exports one immutable
+`SceneConfig` named `SCENE`.
 
-- `SceneMap(...)` and `SceneTrav(...)` for tomogram construction;
-- PCD input, tomogram output/input, and waypoint output paths;
-- one or more named routes, each with a start, end, and waypoint filename;
-- `waypoint_offset=(x, y, z)`, applied only when TXT/PCD waypoints are written. Existing scenes use `(0.0, 0.0, 1.6)`.
+### SceneConfig fields
 
-`--scene <name>` is resolved dynamically to `pct_config/scenes/scene_<name>.py`; the two main programs contain no scene-specific branches.
+| Field | Meaning |
+|---|---|
+| `name` | Lowercase scene identifier. It must match the module filename and the value passed to `--scene`. |
+| `pcd_file` | Source point cloud read by `tomography.py`. Relative paths are resolved from the repository root; absolute paths are preserved. |
+| `tomogram_file` | Pickle written by `tomography.py` and read by `plan.py`. Both stages must use the same file. |
+| `waypoint_dir` | Directory where `plan.py` writes route TXT files and optional binary PCD files. |
+| `waypoint_offset` | `(x, y, z)` translation added after planning, immediately before TXT/PCD export. It does not change the optimizer, planner-internal trajectory, configured `RouteConfig.start/end`, or published ROS Path; it does translate the coordinates, including the first and last points, stored in the exported files. |
+| `map` | `SceneMap` parameters controlling horizontal discretization and vertical slicing during tomography. |
+| `trav` | `SceneTrav` parameters controlling clearance, terrain, obstacle-cost, and inflation calculations. |
+| `routes` | Mapping from CLI route names to `RouteConfig` objects. The reserved CLI value `all` cannot be used as a route name. |
+| `default_route` | Route selected when `--route` is omitted; it must exist in `routes`. |
+
+Every formal scene currently sets `waypoint_offset` explicitly. The
+`SceneConfig` dataclass value `(0.0, 0.0, 1.6)` is only a construction fallback
+for callers that omit the field; it is not a universal offset for all datasets.
+The effective values are scene-specific:
+
+| Scene | Effective `waypoint_offset` |
+|---|---|
+| `whu_tls_forest` | `(0.0, 0.0, 1.0)` |
+| `building`, `gx_forest_gg2`, `gx_forest_gg3`, `plaza`, `shenkan_mls`, `spiral` | `(0.0, 0.0, 1.6)` |
+
+Choose an offset from the coordinate convention of the dataset and its
+consumer. In particular, the WHU value `1.0` reproduces the retained old five
+route PCDs; changing it to `1.6` raises every exported WHU waypoint by about
+`0.6 m` without changing XY or the planner result.
+
+### SceneMap fields
+
+All distances are in metres unless stated otherwise.
+
+| Field | Meaning |
+|---|---|
+| `resolution` | Horizontal grid resolution in metres per cell. It controls point-cloud rasterization and world/grid conversion. |
+| `ground_h` | Z value used as the lower bound of the scene before vertical slices are created. The first slice is anchored at `ground_h + slice_dh`. |
+| `slice_dh` | Vertical spacing between adjacent tomogram slices. |
+
+### SceneTrav fields
+
+| Field | Meaning |
+|---|---|
+| `kernel_size` | Nominal local footprint width in grid cells used to examine neighbouring standable cells. The implementation converts it to an integer half-width. |
+| `interval_min` | Minimum vertical clearance. Cells below this clearance receive `cost_barrier`. |
+| `interval_free` | Clearance at or above which no clearance penalty is added; values between `interval_min` and `interval_free` receive a graded penalty. |
+| `slope_max` | Slope-angle threshold in radians used to derive the standable step threshold `1.2 * resolution * tan(slope_max)`. |
+| `step_max` | Maximum local height step considered crossable. Larger steps are barriers. |
+| `standable_ratio` | Required proportion of standable cells in the local footprint for terrain that is crossable but not directly standable. |
+| `cost_barrier` | Traversability cost assigned to obstacles and rejected cells. |
+| `safe_margin` | Additional distance over which an inflated obstacle cost decays. |
+| `inflation` | Radius around an obstacle that retains full inflation weight before the `safe_margin` decay. |
+
+### RouteConfig fields
+
+| Field | Meaning |
+|---|---|
+| `start`, `end` | Two-dimensional world coordinates passed to the planner. Their grid-snapped trajectory endpoints can differ slightly at `resolution` precision. |
+| `waypoint_file` | Output stem; `plan.py` writes `<waypoint_file>.txt` and, with `--write-pcd`, `<waypoint_file>.pcd`. |
+| `include_in_all` | Whether `--route all` includes this route. Use `False` for compatibility/default aliases that should not be duplicated in a batch. |
 
 ### Adding a Scene
 
-Copy `pct_config/templates/scene_height_only.py` to `pct_config/scenes/scene_<name>.py`, then fill in `SCENE`. The filename, `SCENE.name`, and CLI value must use the same lowercase name. No registry or main-program edit is needed: a valid module is discovered automatically.
+Copy `pct_config/templates/scene_height_only.py` to
+`pct_config/scenes/scene_<name>.py`, then fill in every `SCENE` field. Treat the
+template values, including `waypoint_offset`, as examples rather than dataset
+defaults. The filename, `SCENE.name`, and CLI value must use the same lowercase
+name. No registry or main-program edit is needed: a valid module is discovered
+automatically.
 
 Use a `default` route for normal `plan.py --scene <name>` execution. Additional route names can be selected using `--route <route>`; `--route all` runs every route whose `include_in_all` is true.
 
@@ -118,9 +181,22 @@ python3 plan.py \
 
 ## WHU-TLS Validation
 
-The refactored configuration was validated in the prepared `enter-pct_planner` environment using the full 15,095,947-point WHU-TLS cloud and all five routes. The tomogram SHA-256 is identical to the current-code baseline. All five generated TXT trajectories are numerically identical to that baseline. Compared with the older `data/path_planning` outputs, point counts and XY are identical; routes 2-5 retain the documented `+0.6 m` Z difference because the scene keeps the historical `(0.0, 0.0, 1.6)` waypoint offset, and route 1 contains 28 older manual height edits.
+The shared-scene refactor was validated in the prepared `enter-pct_planner`
+environment using the full 15,095,947-point WHU-TLS cloud and all five routes.
+The retained tomogram SHA-256 is
+`b7efbfbe59568009656fbcbb32f1146e9ccf9a2f48b3bcc5eb2c4bc1d1e3d507`.
 
-Exact commands, hashes, artifacts, and environment caveats are recorded in `AI_prompt/README.md` and the simulation result report.
+The export offset was audited again on 2026-10-08. With
+`waypoint_offset=(0.0, 0.0, 1.0)`, the five generated PCDs contain
+496/541/451/379/352 points and are byte-for-byte identical to the corresponding
+retained old WHU route files. With `z=1.6`, every route keeps the same point
+count, order, and XY but every exported Z is about `0.6 m` higher. The active
+Route 1 file also contains 28 historical manual Z edits; those edits are a
+separate consumer-data convention and are not part of planner reproduction.
+
+Exact commands, hashes, artifacts, and environment caveats are recorded in
+`AI_prompt/README.md` and
+`/home/workspace/simulation/.ai/results/HO-20261007-004-result.md`.
 
 ## License
 

@@ -34,6 +34,16 @@ EXPECTED_TRAV = {
     "gx_forest_gg3": (0, 1.7, 1.7, 10.0, 10.0, 0.001, 50.0, 0.0, 0.0),
 }
 
+EXPECTED_OFFSETS = {
+    "spiral": (0.0, 0.0, 1.6),
+    "building": (0.0, 0.0, 1.6),
+    "plaza": (0.0, 0.0, 1.6),
+    "whu_tls_forest": (0.0, 0.0, 1.0),
+    "shenkan_mls": (0.0, 0.0, 1.6),
+    "gx_forest_gg2": (0.0, 0.0, 1.6),
+    "gx_forest_gg3": (0.0, 0.0, 1.6),
+}
+
 
 class SceneConfigTest(unittest.TestCase):
     def test_discovery_uses_only_lowercase_runnable_scenes(self):
@@ -62,7 +72,7 @@ class SceneConfigTest(unittest.TestCase):
                 EXPECTED_TRAV[name],
             )
 
-    def test_paths_and_three_axis_offsets_are_scene_owned(self):
+    def test_paths_and_scene_specific_three_axis_offsets(self):
         for name in EXPECTED_SCENES:
             scene = load_scene(name)
             self.assertTrue(scene.pcd_file.is_absolute())
@@ -70,7 +80,7 @@ class SceneConfigTest(unittest.TestCase):
             self.assertTrue(scene.waypoint_dir.is_absolute())
             self.assertEqual(scene.pcd_file.suffix, ".pcd")
             self.assertEqual(scene.tomogram_file.suffix, ".pickle")
-            self.assertEqual(scene.waypoint_offset, (0.0, 0.0, 1.6))
+            self.assertEqual(scene.waypoint_offset, EXPECTED_OFFSETS[name])
 
     def test_whu_default_and_all_routes_preserve_legacy_behavior(self):
         scene = load_scene("whu_tls_forest")

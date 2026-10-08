@@ -34,6 +34,7 @@ Python 必须同时一致。所有安装和首次构建由用户手工分批执�
 ```bash
 test -r /opt/ros/noetic/setup.bash
 test -d /home/workspace/simulation/download/pct_planner_py38
+test -f /home/workspace/Forest_Interface/download/python-wheels/open3d-0.18.0-cp38-cp38-manylinux_2_27_x86_64.whl
 test -d /home/workspace/simulation/code/pct_planner/src/PCT_planner/planner/lib
 python3 --version
 df -h /home/workspace/simulation
@@ -59,6 +60,7 @@ python3 -m venv "$PCT_PREFIX"
 source "$PCT_PREFIX/bin/activate"
 python -m pip install --no-index \
   --find-links=/home/workspace/simulation/download/pct_planner_py38 \
+  --find-links=/home/workspace/Forest_Interface/download/python-wheels \
   numpy==1.24.4 \
   cupy-cuda11x==12.3.0 \
   fastrlock==0.8.3 \

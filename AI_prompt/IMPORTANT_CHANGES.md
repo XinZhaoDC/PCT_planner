@@ -1,5 +1,13 @@
 # PCT Planner 重要更改记录
 
+## 2026-10-08：WHU waypoint 导出增量修正
+
+- `scene_whu_tls_forest.py` 的 `waypoint_offset` 从 `(0.0, 0.0, 1.6)` 修正为 `(0.0, 0.0, 1.0)`。
+- 该参数只改变 TXT/PCD 导出坐标（包括导出首末点），不改变规划器内部轨迹、优化、`RouteConfig.start/end` 或 ROS Path。
+- 五条 WHU 路线使用 `z=1.0` 完整重生成后，与 `old_whu_waypoint/waypoint_1..5.pcd` 的点数、点序、XYZ、header 和整文件 SHA-256 分别完全一致；`z=1.6` 会让五条路线的全部导出点高约 `0.6 m`。
+- README 的 Scene Configuration 已改为逐字段说明，并明确 offset 属于各 scene 的数据/消费坐标约定，不能把 dataclass fallback `1.6` 解释为所有场景的统一正确值。
+- 完整复现证据：`/home/workspace/simulation/.ai/results/HO-20261007-004-result.md`。
+
 ## 2026-08-21：共享场景配置重构
 
 - 新增 `pct_config/`，`tomography.py` 和 `plan.py` 通过 loader 动态导入 `pct_config/scenes/scene_<name>.py`。

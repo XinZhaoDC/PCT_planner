@@ -1,5 +1,13 @@
 # PCT Planner AI 算法测试记录
 
+## 2026-10-08：WHU 五路线导出增量复现
+
+- 固定 PCT revision：`18ca40e0b713be8463ba184f90fc33b27370b293`；固定 tomogram SHA-256：`b7efbfbe59568009656fbcbb32f1146e9ccf9a2f48b3bcc5eb2c4bc1d1e3d507`。
+- 候选 `z={0.0,1.0,1.6}`；`z=0.0` 五条均约低 `1.0 m`，`z=1.6` 五条均约高 `0.6 m`。
+- `z=1.0` 通过当前正式规划入口逐路线完整生成，点数为 496、541、451、379、352；五条路线相对旧基线的逐点 `dx/dy/dz`、3D max 和 RMSE 全为 `0`，五个 PCD 整文件 SHA-256 也分别一致。
+- 当前活动 Route 1 相对旧 Route 1 的 28 个非恒定 Z 差来自历史人工编辑，不属于 planner/export offset。
+- 证据：`/home/workspace/simulation/AI_test/HO-20261007-004/` 和 `/home/workspace/simulation/.ai/results/HO-20261007-004-result.md`。
+
 ## 2026-08-21：WHU-TLS 全点云与五路线回归
 
 - 环境：`enter-pct_planner`。
