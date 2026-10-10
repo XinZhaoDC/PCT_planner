@@ -1,5 +1,10 @@
 # PCT Planner AI 辅助资料
 
+当前同步回溯点为`baseline-sim-whu-real-maan-20261009`。读取
+[IMPORTANT_CHANGES.md](IMPORTANT_CHANGES.md)顶部的baseline发布记录，确认完整commit、依赖版本、
+验证范围和有效配置；五仓库对应关系见
+[统一baseline索引](/home/workspace/Forest_Interface/AI_prompt/indexes/BASELINE_TAG_INDEX.md)。
+
 ## 分类入口
 
 - [`IMPORTANT_CHANGES.md`](IMPORTANT_CHANGES.md)：场景配置、接口、依赖和复现方式的重要变化。

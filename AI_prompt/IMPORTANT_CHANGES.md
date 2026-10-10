@@ -1,5 +1,23 @@
 # PCT Planner 重要更改记录
 
+## 2026-10-09：WHU/Maan同步baseline回溯点
+
+- annotated tag：`baseline-sim-whu-real-maan-20261009`。
+- tagged commit：`195ba07ed807eecb595b516d6a3b3ae0d2f30ee7`，发布分支`main`。
+- tag object：`8480506f447b1106d573a0734baca8aca028e6e1`。
+- 组件职责：WHU场景规划、tomogram和waypoint导出。Maan为实采bag下游基线，不表示PCT新增了
+  Maan仿真或已执行Maan规划测试。
+- WHU关键配置：`pct_config/scenes/scene_whu_tls_forest.py`的导出Z offset为1.0；五条活动
+  waypoint相对old WHU逐字节一致。
+- 证据：`/home/workspace/simulation/.ai/results/HO-20261007-004-result.md`；
+  发布记录：`/home/workspace/simulation/.ai/results/HO-20261009-001-result.md`。
+
+同名tag在不同仓库指向不同commit；回溯时以tag剥离后的完整commit为准，不能把tag名称相同
+解释为五个仓库具有相同SHA。本节是tag发布后的文档补充，已发布tag不移动；它不意味着
+本节已包含在tag指向的历史tree中。验证证据冻结于对应任务，不用当前HEAD反向替换历史身份。
+
+统一索引：[五仓库baseline索引](/home/workspace/Forest_Interface/AI_prompt/indexes/BASELINE_TAG_INDEX.md)。
+
 ## 2026-10-08：WHU waypoint 导出增量修正
 
 - `scene_whu_tls_forest.py` 的 `waypoint_offset` 从 `(0.0, 0.0, 1.6)` 修正为 `(0.0, 0.0, 1.0)`。
